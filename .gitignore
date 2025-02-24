@@ -1,0 +1,9 @@
+.vscode/**
+*.cmd
+*.o
+*.o.d
+Module.symvers
+modules.order
+wireguard.ko
+wireguard.mod
+wireguard.mod.c

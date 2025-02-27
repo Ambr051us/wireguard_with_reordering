@@ -448,10 +448,10 @@ int wg_packet_rx_poll(struct napi_struct *napi, int budget)
 	if (unlikely(budget <= 0))
 		return 0;
 
-	while ((skb = wg_prev_queue_peek(&peer->rx_queue)) != NULL &&
+	while ((skb = wg_reorder_queue_peek(&peer->rx_queue)) != NULL &&
 	       (state = atomic_read_acquire(&PACKET_CB(skb)->state)) !=
 		       PACKET_STATE_UNCRYPTED) {
-		wg_prev_queue_drop_peeked(&peer->rx_queue);
+		wg_reorder_queue_drop_peeked(&peer->rx_queue);
 		keypair = PACKET_CB(skb)->keypair;
 		free = true;
 
@@ -523,7 +523,7 @@ static void wg_packet_consume_data(struct wg_device *wg, struct sk_buff *skb)
 	if (unlikely(READ_ONCE(peer->is_dead)))
 		goto err;
 
-	ret = wg_queue_enqueue_per_device_and_peer(&wg->decrypt_queue, &peer->rx_queue, skb,
+	ret = wg_queue_enqueue_per_device_and_peer_rx(&wg->decrypt_queue, &peer->rx_queue, skb,
 						   wg->packet_crypt_wq);
 	if (unlikely(ret == -EPIPE))
 		wg_queue_enqueue_per_peer_rx(skb, PACKET_STATE_DEAD);

@@ -48,7 +48,6 @@ struct wg_peer *wg_peer_create(struct wg_device *wg,
 	INIT_WORK(&peer->transmit_handshake_work, wg_packet_handshake_send_worker);
 	INIT_WORK(&peer->transmit_packet_work, wg_packet_tx_worker);
 	wg_prev_queue_init(&peer->tx_queue);
-	wg_prev_queue_init(&peer->rx_queue);
 	rwlock_init(&peer->endpoint_lock);
 	kref_init(&peer->refcount);
 	skb_queue_head_init(&peer->staged_packet_queue);
@@ -188,7 +187,7 @@ static void rcu_release(struct rcu_head *rcu)
 	struct wg_peer *peer = container_of(rcu, struct wg_peer, rcu);
 
 	dst_cache_destroy(&peer->endpoint_cache);
-	WARN_ON(wg_prev_queue_peek(&peer->tx_queue) || wg_prev_queue_peek(&peer->rx_queue));
+	WARN_ON(wg_prev_queue_peek(&peer->tx_queue) || wg_reorder_queue_peek(&peer->rx_queue));
 
 	/* The final zeroing takes care of clearing any remaining handshake key
 	 * material and other potentially sensitive information.

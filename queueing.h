@@ -154,7 +154,31 @@ static inline void wg_prev_queue_drop_peeked(struct prev_queue *queue)
 	queue->peeked = NULL;
 }
 
-static inline int wg_queue_enqueue_per_device_and_peer(
+/* Single producer */
+bool wg_reorder_queue_enqueue(struct reorder_queue *queue, struct sk_buff *skb);
+
+/* Single consumer */
+struct sk_buff *wg_reorder_queue_dequeue(struct reorder_queue *queue);
+
+/* Single consumer */
+static inline struct sk_buff *wg_reorder_queue_peek(struct reorder_queue *queue)
+{
+	if (queue->peeked)
+		return queue->peeked;
+	queue->peeked = wg_reorder_queue_dequeue(queue);
+	return queue->peeked;
+}
+
+/* Single consumer */
+static inline void wg_reorder_queue_drop_peeked(struct reorder_queue *queue)
+{
+	queue->peeked = NULL;
+}
+
+/*
+ * TODO: The 2 functions below should be organized better, without code duplication
+ */
+static inline int wg_queue_enqueue_per_device_and_peer_tx(
 	struct crypt_queue *device_queue, struct prev_queue *peer_queue,
 	struct sk_buff *skb, struct workqueue_struct *wq)
 {
@@ -165,6 +189,29 @@ static inline int wg_queue_enqueue_per_device_and_peer(
 	 * will wait for the state to change to CRYPTED or DEAD before.
 	 */
 	if (unlikely(!wg_prev_queue_enqueue(peer_queue, skb)))
+		return -ENOSPC;
+
+	/* Then we queue it up in the device queue, which consumes the
+	 * packet as soon as it can.
+	 */
+	cpu = wg_cpumask_next_online(&device_queue->last_cpu);
+	if (unlikely(ptr_ring_produce_bh(&device_queue->ring, skb)))
+		return -EPIPE;
+	queue_work_on(cpu, wq, &per_cpu_ptr(device_queue->worker, cpu)->work);
+	return 0;
+}
+
+static inline int wg_queue_enqueue_per_device_and_peer_rx(
+	struct crypt_queue *device_queue, struct reorder_queue *peer_queue,
+	struct sk_buff *skb, struct workqueue_struct *wq)
+{
+	int cpu;
+
+	atomic_set_release(&PACKET_CB(skb)->state, PACKET_STATE_UNCRYPTED);
+	/* We first queue this up for the peer ingestion, but the consumer
+	 * will wait for the state to change to CRYPTED or DEAD before.
+	 */
+	if (unlikely(!wg_reorder_queue_enqueue(peer_queue, skb)))
 		return -ENOSPC;
 
 	/* Then we queue it up in the device queue, which consumes the

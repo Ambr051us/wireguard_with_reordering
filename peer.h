@@ -36,7 +36,8 @@ struct endpoint {
 
 struct wg_peer {
 	struct wg_device *device;
-	struct prev_queue tx_queue, rx_queue;
+	struct prev_queue tx_queue;
+	struct reorder_queue rx_queue;
 	struct sk_buff_head staged_packet_queue;
 	int serial_work_cpu;
 	bool is_dead;

@@ -6,6 +6,9 @@
 #ifndef _WG_DEVICE_H
 #define _WG_DEVICE_H
 
+#define REORDER_QUEUE_LEN 2048
+#define MAX_REORDER_DLY_USEC 5000000
+
 #include "noise.h"
 #include "allowedips.h"
 #include "peerlookup.h"
@@ -35,6 +38,21 @@ struct prev_queue {
 	struct sk_buff *head, *tail, *peeked;
 	struct { struct sk_buff *next, *prev; } empty; // Match first 2 members of struct sk_buff.
 	atomic_t count;
+};
+
+struct reorder_queue_item {
+	struct sk_buff *packet;
+	ktime_t enqueued_at;
+	u64 seq_num;
+};
+
+struct reorder_queue {
+	struct reorder_queue_item ring_buffer[REORDER_QUEUE_LEN];
+	ktime_t last_deq_time;
+	u64 next_deq_seq_num;
+	u64 last_enq_seq_num;
+	u64 seq_num_offset;
+	struct sk_buff *peeked;
 };
 
 struct wg_device {

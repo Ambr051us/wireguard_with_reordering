@@ -24,7 +24,7 @@ obj-$(CONFIG_WIREGUARD) := wireguard.o
 
 .PHONY: clean install
 
-wireguard.ko:
+wireguard.ko: *.c *.h
 	$(MAKE) -C $(HEADERS_PATH) M=$(WORKDIR)
 
 clean:
